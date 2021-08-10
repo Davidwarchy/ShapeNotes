@@ -1,0 +1,4 @@
+criterion for success
+ 1. can draw simple shapes like squares.
+ 2. can write text at the point where the cursor is 
+ 

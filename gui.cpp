@@ -16,11 +16,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR pCmdLine, 
     wc.lpfnWndProc   = WindowProc;
     wc.hInstance     = hInstance;
     wc.lpszClassName = CLASS_NAME;
+    wc.hCursor       = LoadCursor(NULL, IDC_NO);
+    
 
-    RegisterClass(&wc);
+    RegisterClass(&wc); 
 
     // Create the window.
-
     HWND hwnd = CreateWindowEx(
         0,                              // Optional window styles.
         CLASS_NAME,                     // Window class
