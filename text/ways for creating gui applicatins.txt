@@ -7,6 +7,6 @@ METHOD 2
 2. get the template from http://www.winprog.org/tutorial/simple_window.html
     CreateWindowEx() method contains parameters that change the appearance of the window:
     first argument can make the edge at the top of the window appear of disappear.
-
-
-I forgot to give aesthetic criteria, but have decided to skip that. i might include it in my next project   
+3. WM_PAINT method clears things. it might repaint the entire UI, and one may lose what they had on screen.
+i don't understand the relationship between a drawing context and the tools being used to draw stuff.
+i would love to find a wonderful explantion for why my program as of now isn't drawing anything
