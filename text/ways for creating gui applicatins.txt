@@ -10,3 +10,7 @@ METHOD 2
 3. WM_PAINT method clears things. it might repaint the entire UI, and one may lose what they had on screen.
 i don't understand the relationship between a drawing context and the tools being used to draw stuff.
 i would love to find a wonderful explantion for why my program as of now isn't drawing anything
+  Use GetDC when you want sth to appear instantly
+  
+i think the following are basic methods for drawing stuff on windows and might be helpful in the future.
+    https://docs.microsoft.com/en-us/windows/win32/gdi/drawing-with-the-mouses
