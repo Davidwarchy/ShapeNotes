@@ -65,16 +65,7 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		return 0;
-//  case WM_LBUTTONUP:
-//      int yPos;
-//      int xPos;
-//      hdc = BeginPaint(hwnd, &ps);
-//      xPos = GET_X_LPARAM(lparam); 
-//      yPos = GET_Y_LPARAM(lparam);
-//      drawCircle(hdc, xPos, yPos);
-//      //drawStuff(hwnd, hdc, 0, 0);
-//      EndPaint(hwnd, &ps);
-//      return 0;
+    
  case WM_LBUTTONDOWN: 
       fDraw = TRUE; 
       ptPrevious.x = LOWORD(lparam); 
@@ -85,11 +76,10 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
       if (fDraw) 
       { 
           hdc = GetDC(hwnd); 
-          MoveToEx(hdc, ptPrevious.x, ptPrevious.y, NULL); 
           LineTo(hdc, LOWORD(lparam), HIWORD(lparam)); 
+          MoveToEx(hdc, ptPrevious.x, ptPrevious.y, NULL); 
           ReleaseDC(hwnd, hdc); 
       } 
-      std::cout <<"x: "<< LOWORD(lparam) << std::endl <<"y: "<< HIWORD(lparam) <<std::endl;
       fDraw = FALSE; 
       return 0L; 
    
@@ -100,7 +90,6 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
           MoveToEx(hdc, ptPrevious.x, ptPrevious.y, NULL); 
           LineTo(hdc, ptPrevious.x = LOWORD(lparam), 
             ptPrevious.y = HIWORD(lparam)); 
-          std::cout <<"x: "<< LOWORD(lparam) << std::endl <<"y: "<< HIWORD(lparam) <<std::endl;
           ReleaseDC(hwnd, hdc); 
       } 
       return 0L;
