@@ -5,15 +5,40 @@
 #include <gdiplus.h>
 #include <windowsx.h>//GET_X_LPARAM, GET_Y_LPARAM
 #include <iostream>
+#include <tuple>
 
+#define MAX_LOADSTRING 100
 
 BOOL fDraw = FALSE; 
 POINT ptPrevious; 
-  
+
+/* Global Variables **********************************************************/
+HINSTANCE hInst;
+TCHAR szTitle[MAX_LOADSTRING];
+TCHAR szWindowClass[MAX_LOADSTRING];	
+
+typedef struct tagShape
+{
+	RECT rect;
+	UINT shapeID;
+} Shape;
+
+
+const UINT SHAPE_COUNT = 5;
+Shape Shapes[SHAPE_COUNT]; 
+UINT nCurrentIndex = 0;
+
+bool  isRubberBand = false;
+POINT ptStart;
+POINT ptCurrent;
+
+LRESULT OnPaint       (HWND hwnd);
 LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM lparam);
 void draw(HDC hdc);
-void drawCircle(HDC hdc, int xPos, int yPos);
+void drawCircle(HDC hdc, int pt1x, int pt1y, int pt2x, int pt2y);
 void drawStuff(HWND hWnd, HDC hdc, int xPos, int yPos);
+std::tuple<int, int, int, int> dim(int pt1x, int pt1y, int pt2x, int pt2y);
+void paintMouseOnRect(HDC hdc);
 
 int WINAPI WinMain(HINSTANCE currentInstance, HINSTANCE previousInstance, PSTR cmdLine, INT cmdCount) {
 	// Initialize GDI+
@@ -56,9 +81,18 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
 	PAINTSTRUCT ps;
 
 	switch (msg) {
+	case WM_CREATE:
+		{
+			//C: Set the initial drawing mode.
+			HMENU hMenu = GetMenu(hwnd);
+			HMENU hMenuShapes = GetSubMenu(hMenu, 1);
+			CheckMenuRadioItem(hMenuShapes, 1, 2, 3, MF_BYCOMMAND);
+		}
 	case WM_PAINT:
+    return OnPaint(hwnd);
 		hdc = BeginPaint(hwnd, &ps);//returns handle to to the display device context
 		draw(hdc);
+    paintMouseOnRect(hdc);
 		EndPaint(hwnd, &ps);//ends paint and releases the dc
     ReleaseDC(hwnd, hdc);
 		return 0;
@@ -76,8 +110,8 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
       if (fDraw) 
       { 
           hdc = GetDC(hwnd); 
-          LineTo(hdc, LOWORD(lparam), HIWORD(lparam)); 
           MoveToEx(hdc, ptPrevious.x, ptPrevious.y, NULL); 
+          LineTo(hdc, LOWORD(lparam), HIWORD(lparam)); 
           ReleaseDC(hwnd, hdc); 
       } 
       fDraw = FALSE; 
@@ -87,9 +121,11 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
       if (fDraw) 
       { 
           hdc = GetDC(hwnd); 
+          FillRect(hdc, &ps.rcPaint, (HBRUSH) (COLOR_WINDOW+1));
           MoveToEx(hdc, ptPrevious.x, ptPrevious.y, NULL); 
-          LineTo(hdc, ptPrevious.x = LOWORD(lparam), 
-            ptPrevious.y = HIWORD(lparam)); 
+          drawCircle(hdc, ptPrevious.x, ptPrevious.y, LOWORD(lparam), HIWORD(lparam));
+          std::cout<<" "<<ptPrevious.x<<" "<< ptPrevious.y<<" "<< LOWORD(lparam)<<" "<<HIWORD(lparam)<<std::endl;
+          LineTo(hdc, ptPrevious.x, ptPrevious.y); 
           ReleaseDC(hwnd, hdc); 
       } 
       return 0L;
@@ -109,19 +145,18 @@ void draw(HDC hdc) {
 	gf.FillRectangle(&brush, 0, 0, 100, 100);
 	gf.DrawRectangle(&pen, 0, 0, 100, 150);
 
-	Gdiplus::Bitmap bmp(L"tilespan.png");
+	Gdiplus::Bitmap bmp(L"images\\tilespan.png");
 	gf.DrawImage(&bmp, 430, 10);
 	gf.FillEllipse(&brush, 50, 400, 200, 100);
 }
 
-void drawCircle(HDC hdc, int xPos, int yPos) {
+void drawCircle(HDC hdc, int pt1x, int pt1y, int pt2x, int pt2y) {
+  using namespace std;
+  int x,y,w,h;
+  tie(x,y,w,h)  = dim(pt1x, pt1y, pt2x, pt2y);
 	Gdiplus::Graphics gf(hdc);
-	Gdiplus::SolidBrush brush(Gdiplus::Color(255, 0, 0, 0)); 
-  Gdiplus::Pen pen(Gdiplus::Color(255, 255, 0, 0));
-  std::cout <<"x: "<< xPos << std::endl <<"y: "<<yPos <<std::endl;
-  
-	gf.FillEllipse(&brush, xPos, yPos, 200, 100);
-  gf.DrawRectangle(&pen, xPos, yPos, 100, 150);
+	Gdiplus::Pen pen(Gdiplus::Color(255, 255, 0, 0)); 
+	gf.DrawEllipse(&pen, x, y, w, h);
 }
 
 void drawStuff(HWND hWnd, HDC hdc, int xPos, int yPos){
@@ -140,4 +175,86 @@ void drawStuff(HWND hWnd, HDC hdc, int xPos, int yPos){
           LineTo(hdc, rect.left + (i * 20), rect.bottom);  
       }
 }
+
+std::tuple<int, int, int, int>dim(int pt1x, int pt1y, int pt2x, int pt2y){
+  int x, y, h,w;
+
+  if(pt2x < pt1x){
+    x = pt2x;
+    w = pt1x - pt2x;
+  }else{
+    x = pt1x;
+    w = pt2x - pt1x;
+  }
   
+  if(pt2y < pt1y){
+    y = pt2y;
+    h = pt1y - pt2y;
+  }else{
+    y = pt1y;
+    h = pt2y - pt1y;
+  }
+  
+  return std::make_tuple(x, y, w, h);
+}
+
+void paintMouseOnRect(HDC hdc);  
+void paintMouseOnRect(HDC hdc)
+{
+	HPEN hpen, hpenOld;
+	HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+	hpen = CreatePen(PS_DOT, 1, RGB(0, 0, 0));
+	hpenOld = (HPEN)SelectObject(hdc, hpen);
+	SetBkColor(hdc, RGB(255, 255, 255));  //set the pen background
+	SetBkMode(hdc, OPAQUE);  //set the pen BG mode to overwrite current background
+
+  // do something...
+	int top = 0;
+	int left = 0;
+	int buttom = 400;
+	int right = 400;
+	Rectangle(hdc, left, top, right, buttom);
+
+	//return the pen
+	SelectObject(hdc, hpenOld);
+	DeleteObject(hpen);
+	SelectObject(hdc, oldBrush);
+	DeleteObject(oldBrush);
+	DeleteObject(hpenOld);
+}
+
+LRESULT OnPaint       (HWND hwnd)
+{
+	PAINTSTRUCT ps;
+	HDC			hdc;
+	hdc = ::BeginPaint(hwnd, &ps);
+
+	UINT index;
+	for (index = 0; index < SHAPE_COUNT; index++)
+	{
+		if (2 == Shapes[index].shapeID)
+		{
+			::Rectangle	(	
+						hdc, 
+						Shapes[index].rect.left, 
+						Shapes[index].rect.top, 
+						Shapes[index].rect.right,
+						Shapes[index].rect.bottom
+						);
+		}
+		else
+		{
+			::Ellipse	(	
+						hdc, 
+						Shapes[index].rect.left, 
+						Shapes[index].rect.top, 
+						Shapes[index].rect.right,
+						Shapes[index].rect.bottom
+						);
+		}
+	}
+
+	::EndPaint(hwnd, &ps);
+
+	return 0;	
+}

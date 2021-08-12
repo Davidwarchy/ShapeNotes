@@ -1,0 +1,16 @@
+point
+active
+
+mouse down:
+  register point
+  set drawing active
+  
+mouse move:
+  if active:
+    clear canvas
+    get new point
+    draw from initial point to new point
+    
+mouse up:
+  set inactive
+  
