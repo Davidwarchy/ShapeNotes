@@ -1,2 +1,0 @@
-I think it is kind of interesting to now how windows paints from its earlier versions.
-    1. programs usually painted directly to the video buffer (update program window, update the video buffer)

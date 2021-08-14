@@ -2,10 +2,10 @@
 //run with g++ win32_gdiplus.cpp -lgdiplus -lgdi32
 
 #include <windows.h>
-#include <gdiplus.h>
+#include <gdiplus.h>//GDI functions for Graphics, Pens and Brushes and more
 #include <windowsx.h>//GET_X_LPARAM, GET_Y_LPARAM
-#include <iostream>
-#include <tuple>
+#include <iostream>//for printing to console
+#include <tuple>//returning a bunch of numbers
 
 #define MAX_LOADSTRING 100
 
@@ -101,6 +101,7 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
 		return 0;
     
  case WM_LBUTTONDOWN: 
+      ClipCursor
       fDraw = TRUE; 
       ptPrevious.x = LOWORD(lparam); 
       ptPrevious.y = HIWORD(lparam); 
@@ -223,6 +224,8 @@ void paintMouseOnRect(HDC hdc)
 	DeleteObject(hpenOld);
 }
 
+//this is a handy piece of code... but it doesn't store anything we paint on the canvas. i think there might lie a clue about how one could operate their program with this.
+//this only paints shaes already stored.
 LRESULT OnPaint       (HWND hwnd)
 {
 	PAINTSTRUCT ps;
@@ -231,8 +234,9 @@ LRESULT OnPaint       (HWND hwnd)
 
 	UINT index;
 	for (index = 0; index < SHAPE_COUNT; index++)
-	{
-		if (2 == Shapes[index].shapeID)
+	{ 
+    std::cout<<Shapes[index].shapeID<<std::endl;
+		if (0 == Shapes[index].shapeID)
 		{
 			::Rectangle	(	
 						hdc, 

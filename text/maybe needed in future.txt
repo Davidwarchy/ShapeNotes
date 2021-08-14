@@ -1,0 +1,3 @@
+drawing lines - https://docs.microsoft.com/en-us/windows/win32/inputdev/using-mouse-input
+drawing text - https://docs.microsoft.com/en-us/windows/win32/inputdev/using-mouse-input#processing-a-double-click-message
+https://www.codeproject.com/Questions/5161687/How-to-add-text-and-image-in-win32-app

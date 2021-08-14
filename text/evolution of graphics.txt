@@ -1,3 +1,2 @@
 I think it is kind of interesting to now how windows paints from its earlier versions.
     1. programs usually painted directly to the video buffer (update program window, update the video buffer)
-    2. programs painted to an offline surface manager. this then composited the changes and updated teh screen. DWM (desktop window manager) was the name.

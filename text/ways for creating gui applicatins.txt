@@ -14,3 +14,4 @@ i would love to find a wonderful explantion for why my program as of now isn't d
   
 i think the following are basic methods for drawing stuff on windows and might be helpful in the future.
     https://docs.microsoft.com/en-us/windows/win32/gdi/drawing-with-the-mouses - this saved me a lot of effort.
+i don't understand what an instance is. i'm assumingn it is sth used by the os. i think there could be a template for creating a windowed application so that one doesn't need to think a lot when trying to create a windowed application. 

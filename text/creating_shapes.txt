@@ -14,3 +14,34 @@ mouse move:
 mouse up:
   set inactive
   
+how to draw a shape.
+####################################################
+draw circle when the use clicks and drags the mouse
+create a rectangle in which the shape is to exist
+set a boolean that indicates whether we are drawing or not
+
+mouse down
+    set first point
+    set drawing active
+  
+mouse move
+    check if left button is down & also whether drawing is set to active
+    get the coordinates.
+    get them to rectangle & validate the rectangle
+      rcTarget is the rectangle on which we are drawing the free shape. Why can't it be a variable local to the Windows Procedre function? I think it could be if, after the left mouse button is lifted we transferred this temporary shape to a new shape, whose pointer we added to the shapes forward_list. this could work also.
+    send paint message to window
+    
+mouse up
+    set drawing inactive so we don't draw any shape. 
+    add drawn shape to shapes
+    
+paint
+    paint all the shapes.
+    
+
+
+
+
+
+    
+  
