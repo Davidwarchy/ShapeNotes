@@ -8,6 +8,7 @@
 #include <tuple>//returning a bunch of numbers
 
 #define MAX_LOADSTRING 100
+#define UNICODE
 
 BOOL fDraw = FALSE; 
 POINT ptPrevious; 

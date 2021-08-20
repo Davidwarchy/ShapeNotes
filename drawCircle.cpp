@@ -13,7 +13,7 @@ class Shape {
     RECT rect;
     UINT shapeID;
     void display(){
-      std::cout<<"The shape id is: "<<shapeID<<std::endl;
+      //std::cout<<"The shape id is: "<<shapeID<<std::endl;
     }
 };
 
@@ -26,6 +26,8 @@ void drawCircle(HDC hdc);
 LRESULT retrieveShapes(HWND hwnd);
 template <typename T> int forward_list_size(const forward_list<T>& lst);//for returning the size of a forward list
 void testShapes();
+BOOL captureRect(HDC hdcWindow, HDC hdcMemDC, RECT previousRect);
+BOOL restoreRect(HDC hdcWindow, HDC hdcMemDC, RECT destRect, RECT srcRect);
 
 int WINAPI WinMain(HINSTANCE currentInstance, HINSTANCE previousInstance, PSTR cmdLine, INT cmdCount) {
 	// Initialize GDI+
@@ -46,8 +48,8 @@ int WINAPI WinMain(HINSTANCE currentInstance, HINSTANCE previousInstance, PSTR c
 	// Create the window
 	HWND hwnd = CreateWindow(CLASS_NAME, "Win32 Drawing with GDI+ Tutorial",
 		WS_OVERLAPPEDWINDOW | WS_VISIBLE,            // Window style
-		CW_USEDEFAULT, CW_USEDEFAULT,                // Window initial position
-		800, 600,                                    // Window size
+		0, 0,                // Window initial position
+		500, 600,                                    // Window size
 		nullptr, nullptr, nullptr, nullptr);
   ShowWindow(hwnd, SW_SHOW);
   UpdateWindow(hwnd);
@@ -67,22 +69,28 @@ int WINAPI WinMain(HINSTANCE currentInstance, HINSTANCE previousInstance, PSTR c
 }
 
 LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM lparam) {
-	HDC hdc;
+	HDC hdcWindow;
+  static HDC hdcMemDC;
+  HBITMAP hbmScreen;   
 	PAINTSTRUCT ps;
-  static POINT pt;
-  static RECT rcTarget;
-  static BOOL bDrawing;
-  static RECT rcTemp; 
-  static HPEN hPenDefault = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
-  static HBRUSH hBrushDefault = CreateSolidBrush(RGB(0, 0, 255));
+  static POINT pt;            //position of mouse
+  static RECT rcTarget;       //rectangle formed in last move
+  static RECT rcPrevious;     //rectangle formed in previous move
+  static BOOL bDrawing;       //is in drawing mode
+  static HPEN hPenDefault;    //default pen
+  static HBRUSH hBrushDefault; //default brush
+  
+  
+  hPenDefault = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
+  hBrushDefault = CreateSolidBrush(RGB(0, 0, 255));
   
 	switch (msg) {
     
     case WM_PAINT:
-      hdc = BeginPaint(hwnd, &ps);//returns handle to to the display device context
+      hdcWindow = BeginPaint(hwnd, &ps);//returns handle to to the display device context
       retrieveShapes(hwnd);
       EndPaint(hwnd, &ps);//ends paint and releases the dc
-      ReleaseDC(hwnd, hdc);
+      ReleaseDC(hwnd, hdcWindow);
       return 0;
       
     case WM_DESTROY:
@@ -93,20 +101,31 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
       pt.x = (LONG) LOWORD(lparam); 
       pt.y = (LONG) HIWORD(lparam); 
       bDrawing = TRUE;
+   
       return 0;
       
     case WM_MOUSEMOVE://you want the newest movement shown and the previous disappear.
-      if((bDrawing==TRUE) && (param&MK_LBUTTON)){
-        hdc = GetDC(hwnd);
+      if((bDrawing==TRUE) && (param&MK_LBUTTON)){   
         
+        hdcWindow = GetDC(hwnd);
+        hdcMemDC = CreateCompatibleDC(hdcWindow); 
+        if (!hdcMemDC){MessageBox(hwnd, "CreateCompatibleDC has failed", "Failed", MB_OK);}//incase of failure
+        hbmScreen = CreateCompatibleBitmap(hdcWindow, rcPrevious.right - rcPrevious.left, rcPrevious.bottom - rcPrevious.top);
+        if (!hbmScreen){MessageBox(hwnd, "CreateCompatibleBitmap Failed", "Failed", MB_OK);}
+        SelectObject(hdcMemDC, hbmScreen);
+        
+        captureRect(hdcWindow, hdcMemDC, rcPrevious);
+        
+        //when mouse moves overdraw previous drawing with system color
         HPEN hPen = CreatePen(PS_SOLID, 1, GetSysColor(COLOR_3DFACE));
         HBRUSH hBrush = CreateSolidBrush(GetSysColor(COLOR_3DFACE));
-        SelectObject(hdc, hPen);
-        SelectObject(hdc, hBrush);
-        Rectangle(hdc, rcTemp.left, rcTemp.top, rcTemp.right, rcTemp.bottom);
+        SelectObject(hdcWindow, hPen);
+        SelectObject(hdcWindow, hBrush);
+        Ellipse(hdcWindow, rcPrevious.left, rcPrevious.top, rcPrevious.right, rcPrevious.bottom);
         
-        SelectObject(hdc, hBrushDefault);
-        SelectObject(hdc, hPenDefault);
+        //select the pen and brush for new rectangle
+        SelectObject(hdcWindow, hBrushDefault);
+        SelectObject(hdcWindow, hPenDefault);
 
         //validate position of rectangle coordinates
         if ((pt.x < (LONG) LOWORD(lparam)) && (pt.y > (LONG) HIWORD(lparam))) {
@@ -126,11 +145,14 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
             SetRect(&rcTarget, pt.x, pt.y, LOWORD(lparam), 
                 HIWORD(lparam)); 
         }
-
+        //restore what was there
+        restoreRect(hdcWindow, hdcMemDC, rcPrevious, rcPrevious);
+        
         //draw rectangle
-        Rectangle(hdc, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
-        rcTemp = rcTarget;
-        ReleaseDC(hwnd, hdc);
+        Ellipse(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
+        rcPrevious = rcTarget;
+        rcPrevious = rcTarget;
+        ReleaseDC(hwnd, hdcWindow);
       }
       return 0;
     case WM_LBUTTONUP:
@@ -141,7 +163,7 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
         p->shapeID = 2;
       }
       bDrawing = FALSE;
-      rcTemp.top = rcTemp.bottom = rcTemp.left = rcTemp.right = 0;
+      rcPrevious.top = rcPrevious.bottom = rcPrevious.left = rcPrevious.right = 0;
       return 0;
     default:
       return DefWindowProc(hwnd, msg, param, lparam);
@@ -182,5 +204,27 @@ void testShapes(){
   p->shapeID = 2;
   p->display();
   shapes.push_front(p);
-  cout<<forward_list_size(shapes)<<endl;
+  //cout<<forward_list_size(shapes)<<endl;
+}
+
+//function to repaint shapes that have been obstructed or drawn over.
+BOOL captureRect(HDC hdcWindow, HDC hdcMemDC, RECT previousRect){
+   //make transfer from the window to our memory
+   if (!StretchBlt(hdcMemDC,
+                    0, 0, previousRect.right, previousRect.bottom,
+                    hdcWindow,
+                    previousRect.left, previousRect.top, previousRect.right, previousRect.bottom,
+                    SRCCOPY))
+    {MessageBox(WindowFromDC(hdcWindow), "StretchBlt has failed", "Failed", MB_OK);return TRUE;}else{return FALSE;}
+   
+}
+
+BOOL restoreRect(HDC hdcWindow, HDC hdcMemDC, RECT destRect, RECT srcRect){
+     //make transfer from the memory to our window
+   if (!StretchBlt(hdcWindow,
+                    destRect.left, destRect.top, destRect.right, destRect.bottom,
+                    hdcMemDC,
+                    srcRect.left, srcRect.top, srcRect.right, srcRect.bottom,
+                    SRCCOPY))
+    {MessageBox(WindowFromDC(hdcWindow), "StretchBlt has failed", "Failed", MB_OK);return TRUE;}else return FALSE;
 }

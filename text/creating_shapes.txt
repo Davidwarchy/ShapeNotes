@@ -32,7 +32,7 @@ mouse move
     send paint message to window
     
 mouse up
-    set drawing inactive so we don't draw any shape. 
+    set drawing inactive so we don't draw any shape on mouse move
     add drawn shape to shapes
     
 paint
