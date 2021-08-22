@@ -39,8 +39,10 @@ paint
     paint all the shapes.
     
 
-
-
+problems
+1. initial bits are quite random
+2. the trail left by the left-bottom edge of the rectangle bounding the shape
+3. the loss of capacity to repair canvas from previous images when size seems to exceed a particular size
 
 
     

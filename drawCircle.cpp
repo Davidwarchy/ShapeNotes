@@ -28,6 +28,9 @@ template <typename T> int forward_list_size(const forward_list<T>& lst);//for re
 void testShapes();
 BOOL captureRect(HDC hdcWindow, HDC hdcMemDC, RECT previousRect);
 BOOL restoreRect(HDC hdcWindow, HDC hdcMemDC, RECT destRect, RECT srcRect);
+void CreateBMPFile(HWND hwnd, LPTSTR pszFile, PBITMAPINFO pbi, 
+                  HBITMAP hBMP, HDC hDC);
+PBITMAPINFO CreateBitmapInfoStruct(HWND hwnd, HBITMAP hBmp);
 
 int WINAPI WinMain(HINSTANCE currentInstance, HINSTANCE previousInstance, PSTR cmdLine, INT cmdCount) {
 	// Initialize GDI+
@@ -69,17 +72,23 @@ int WINAPI WinMain(HINSTANCE currentInstance, HINSTANCE previousInstance, PSTR c
 }
 
 LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM lparam) {
-	HDC hdcWindow;
-  static HDC hdcMemDC;
-  HBITMAP hbmScreen;   
-	PAINTSTRUCT ps;
-  static POINT pt;            //position of mouse
-  static RECT rcTarget;       //rectangle formed in last move
-  static RECT rcPrevious;     //rectangle formed in previous move
-  static BOOL bDrawing;       //is in drawing mode
-  static HPEN hPenDefault;    //default pen
-  static HBRUSH hBrushDefault; //default brush
-  
+	HDC hdcWindow;                //drawing context to main window
+  static HDC hdcMemDCTo;        //drawing context to memory place
+  static HDC hdcMemDCFrom;
+  HBITMAP hbmRcTo;              //handle to the bitmap of image we are capturing
+  BITMAP bmRcTo;                //bitmap we capturing
+  static PBITMAPINFO pbmi;
+  static char* lpbitmap;        //pointer to the bytes 
+  HBITMAP hbmRcFrom;            //handle to bitmap from which we are to restore
+  BITMAP bmRcFrom;
+	PAINTSTRUCT ps;               //bitmap being restored
+  static POINT pt;              //position of mouse
+  static RECT rcTarget;         //rectangle formed in last move
+  static RECT rcPrevious;       //rectangle formed in previous move
+  static BOOL bDrawing;         //is in drawing mode
+  static HPEN hPenDefault;      //default pen
+  static HBRUSH hBrushDefault;  //default brush
+  static BOOL bGaugingSize;     //is true if the user is just deciding what size the image is
   
   hPenDefault = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
   hBrushDefault = CreateSolidBrush(RGB(0, 0, 255));
@@ -88,7 +97,7 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
     
     case WM_PAINT:
       hdcWindow = BeginPaint(hwnd, &ps);//returns handle to to the display device context
-      retrieveShapes(hwnd);
+      //retrieveShapes(hwnd);
       EndPaint(hwnd, &ps);//ends paint and releases the dc
       ReleaseDC(hwnd, hdcWindow);
       return 0;
@@ -101,32 +110,13 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
       pt.x = (LONG) LOWORD(lparam); 
       pt.y = (LONG) HIWORD(lparam); 
       bDrawing = TRUE;
-   
       return 0;
       
     case WM_MOUSEMOVE://you want the newest movement shown and the previous disappear.
-      if((bDrawing==TRUE) && (param&MK_LBUTTON)){   
-        
+      if((bDrawing==TRUE) && (param&MK_LBUTTON)){  
         hdcWindow = GetDC(hwnd);
-        hdcMemDC = CreateCompatibleDC(hdcWindow); 
-        if (!hdcMemDC){MessageBox(hwnd, "CreateCompatibleDC has failed", "Failed", MB_OK);}//incase of failure
-        hbmScreen = CreateCompatibleBitmap(hdcWindow, rcPrevious.right - rcPrevious.left, rcPrevious.bottom - rcPrevious.top);
-        if (!hbmScreen){MessageBox(hwnd, "CreateCompatibleBitmap Failed", "Failed", MB_OK);}
-        SelectObject(hdcMemDC, hbmScreen);
         
-        captureRect(hdcWindow, hdcMemDC, rcPrevious);
-        
-        //when mouse moves overdraw previous drawing with system color
-        HPEN hPen = CreatePen(PS_SOLID, 1, GetSysColor(COLOR_3DFACE));
-        HBRUSH hBrush = CreateSolidBrush(GetSysColor(COLOR_3DFACE));
-        SelectObject(hdcWindow, hPen);
-        SelectObject(hdcWindow, hBrush);
-        Ellipse(hdcWindow, rcPrevious.left, rcPrevious.top, rcPrevious.right, rcPrevious.bottom);
-        
-        //select the pen and brush for new rectangle
-        SelectObject(hdcWindow, hBrushDefault);
-        SelectObject(hdcWindow, hPenDefault);
-
+        //###GET RECTANGLE CUT BY MOUSE MOVEMENT FROM POINT OF MOUSEDOWN
         //validate position of rectangle coordinates
         if ((pt.x < (LONG) LOWORD(lparam)) && (pt.y > (LONG) HIWORD(lparam))) {
             SetRect(&rcTarget, pt.x, HIWORD(lparam), LOWORD(lparam), pt.y); 
@@ -145,14 +135,113 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
             SetRect(&rcTarget, pt.x, pt.y, LOWORD(lparam), 
                 HIWORD(lparam)); 
         }
-        //restore what was there
-        restoreRect(hdcWindow, hdcMemDC, rcPrevious, rcPrevious);
         
-        //draw rectangle
+        //###RESTORE IMAGE UNDER RECTANGLE BEFORE PREVIOUS MOVE IF USER IS GAUGING SIZE
+        if(bGaugingSize){
+            hdcMemDCFrom = CreateCompatibleDC(hdcWindow);
+            if (!hdcMemDCFrom)
+            {
+                MessageBox(hwnd, "CreateCompatibleDC has failed", "Failed", MB_OK);
+                return 0;
+            }
+            //create compatible bitmap
+            hbmRcFrom = CreateCompatibleBitmap(hdcWindow, rcPrevious.right - rcPrevious.left, rcPrevious.bottom - rcPrevious.top);
+            if (!hbmRcFrom)
+            {
+                MessageBox(hwnd, "CreateCompatibleBitmap Failed", "Failed", MB_OK);
+                return 0;
+            }
+            //select compatible bitmap into compatible dc
+            SelectObject(hdcMemDCFrom, hbmRcFrom);
+              //results is the number of lines sets in the hdc. we can check whether this is still the same number as the height of the bitmap.
+              int result = SetDIBitsToDevice(hdcWindow,                   //handle to the device context we are drawing to
+                                             rcPrevious.left,             //$upper left x coord of destination rect
+                                             rcPrevious.top,              //upper left y coord of the destination rectangle.
+                                             pbmi->bmiHeader.biWidth,     //width of the image in pixels
+                                             pbmi->bmiHeader.biHeight,    //heigth of the image in pixels
+                                             0,                        //x-coord of lower left corner of the image
+                                             0,                        //y-coord of lower left corner of the image
+                                             0,                           //starting scanning lines
+                                             pbmi->bmiHeader.biHeight,    //number of DIB scan lines contained in the array pointed to by lpvBits
+                                             lpbitmap,                    //$a pointer to the color data stored in an array of bytes
+                                             pbmi,                        //$a pointer to the BMI structure containing info about he DIB
+                                             DIB_RGB_COLORS               //$whether the bmiColors member of the BMI has color indeces
+                                             );
+        }
+        
+        //###CAPTURE IMAGE UNDER RECTANGLE
+        //create compatible dc
+        hdcMemDCTo = CreateCompatibleDC(hdcWindow);
+        if (!hdcMemDCTo)
+        {
+            MessageBox(hwnd, "CreateCompatibleDC has failed", "Failed", MB_OK);
+            return 0;
+        }
+        
+        //create compatible bitmap
+        hbmRcTo = CreateCompatibleBitmap(hdcWindow, rcTarget.right - rcTarget.left, rcTarget.bottom - rcTarget.top);
+        //!check width and height of the bitmap created at this point. what is it's nature.
+        if (!hbmRcTo)
+        {
+            MessageBox(hwnd, "CreateCompatibleBitmap Failed", "Failed", MB_OK);
+            return 0;
+        }
+        
+        //select compatible bitmap into compatible dc
+        SelectObject(hdcMemDCTo, hbmRcTo);
+        //captureRect(hdcWindow, hdcMemDCTo, rcTarget);
+        
+        //get the bitmap from the window client area to an actual bitmap
+        //!i think there might be some confusion here. I got the bitmap from the handle into the bitmap object's memory
+        //!and i also passed the handle to the bitmap to the CreateBitmapInfoStruct which ofcourse will not change the contents of the bitmap we desire.
+        //!here i think one could check at what is really being modified as a bitmap. Is it that which is pointed to by hbmRcTo or is it the object bmRcTo?
+        GetObject(hbmRcTo, sizeof(BITMAP), &bmRcTo);
+        bmRcTo.bmBits = lpbitmap;
+        bmRcTo.bmBitsPixel = 32;
+        cout<<"type\t"<<bmRcTo.bmType<<", width\t"<<bmRcTo.bmWidth<<", height\t"<<bmRcTo.bmHeight<<", width(b)\t"<<bmRcTo.bmWidthBytes<<", planes\t"<<bmRcTo.bmPlanes<<", bitsPP\t"<<bmRcTo.bmBitsPixel<<", array pointer\t"<<bmRcTo.bmBits<<endl;
+        //!the pbmi can also show us the dimensions of the bitmap info. we could check the width and the height and the colors being used.
+        pbmi = CreateBitmapInfoStruct(hwnd, hbmRcTo);//the hwnd is only for displaying errors.
+        
+        //get bytes from the bitmap into memory
+        HANDLE hDIB = NULL;
+        hDIB = GlobalAlloc(GHND, pbmi->bmiHeader.biSizeImage);
+        lpbitmap = NULL;    
+        lpbitmap = (char*)GlobalLock(hDIB);
+        
+        if (!BitBlt(hdcMemDCTo,
+              0, 0,
+              rcTarget.right - rcTarget.left, rcTarget.bottom - rcTarget.top,
+              hdcWindow,
+              rcTarget.left, rcTarget.top,
+              SRCCOPY))
+          {
+              cout<<"BitBlt has failed"<<endl;
+              return FALSE;
+          }
+          
+        // Gets the "bits" from the bitmap, and copies them into a buffer 
+        // that's pointed to by lpbitmap.
+        GetDIBits(hdcMemDCTo, hbmRcTo, 0,
+        (UINT)pbmi->bmiHeader.biHeight,
+        lpbitmap,
+        pbmi, DIB_RGB_COLORS);
+        
+        // LONG* longstuff = (LONG*)lpbitmap;
+        // cout<<"image size is"<<pbmi->bmiHeader.biSizeImage<<"bytes"<<endl;
+        // for(int i=0;i<pbmi->bmiHeader.biSizeImage/4;i++){
+          //cout<<"\t"<<*(longstuff+i);
+          // *(longstuff+i) = 0x00ff0000;
+        // }
+        
+        //DRAW RECTANGLE
         Ellipse(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
         rcPrevious = rcTarget;
-        rcPrevious = rcTarget;
         ReleaseDC(hwnd, hdcWindow);
+        bGaugingSize = TRUE;
+        
+        
+        // Free memory.  
+        GlobalFree((HGLOBAL)lpbitmap);
       }
       return 0;
     case WM_LBUTTONUP:
@@ -161,9 +250,20 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
         shapes.push_front(p);
         p->rect = rcTarget;
         p->shapeID = 2;
+        
+        // {
+          // LONG* longstuff = (LONG*)lpbitmap;
+          // cout<<"###"<<hex<<*(longstuff -1)<<endl;
+          // cout<<"image size is"<<pbmi->bmiHeader.biSizeImage<<"bytes"<<endl;
+          // for(int i=0;i<pbmi->bmiHeader.biSizeImage/4;i++){
+            // printf("%08x\t",*(longstuff+i));
+          // }
+        // }
       }
       bDrawing = FALSE;
-      rcPrevious.top = rcPrevious.bottom = rcPrevious.left = rcPrevious.right = 0;
+      bGaugingSize = FALSE;
+      //rcPrevious.top = rcPrevious.bottom = rcPrevious.left = rcPrevious.right = 0;
+      //perhaps remember to delete stuff like bitmaps and all
       return 0;
     default:
       return DefWindowProc(hwnd, msg, param, lparam);
@@ -174,22 +274,25 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
 //Shape structure, number of shapes
 LRESULT retrieveShapes(HWND hwnd)
 {
+  
+  static HPEN hPenDefault;      //default pen
+  static HBRUSH hBrushDefault;  //default brush
+    hPenDefault = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
+  hBrushDefault = CreateSolidBrush(RGB(0, 0, 255));
+  
   int no_of_shapes = forward_list_size(shapes);
   
   //if there are no shapes
   if(no_of_shapes<=0){
     return 0;
   }
-  
+  cout<<no_of_shapes<<endl;
   //if there are any shapes
 	PAINTSTRUCT ps;
 	HDC			hdc;
 	hdc = BeginPaint(hwnd, &ps);
-
   for (Shape* a : shapes) Ellipse(hdc, a->rect.left, a->rect.top, a->rect.right ,a->rect.bottom);
-
 	EndPaint(hwnd, &ps);
-
 	return 0;	
 }
 
@@ -208,23 +311,184 @@ void testShapes(){
 }
 
 //function to repaint shapes that have been obstructed or drawn over.
-BOOL captureRect(HDC hdcWindow, HDC hdcMemDC, RECT previousRect){
-   //make transfer from the window to our memory
-   if (!StretchBlt(hdcMemDC,
-                    0, 0, previousRect.right, previousRect.bottom,
-                    hdcWindow,
-                    previousRect.left, previousRect.top, previousRect.right, previousRect.bottom,
-                    SRCCOPY))
-    {MessageBox(WindowFromDC(hdcWindow), "StretchBlt has failed", "Failed", MB_OK);return TRUE;}else{return FALSE;}
+BOOL captureRect(HDC hdcWindow, HDC hdcMemDC, RECT rect){ 
+    // Bit block transfer into our compatible memory DC.
+    if (!BitBlt(hdcMemDC,
+        0, 0,
+        rect.right - rect.left, rect.bottom - rect.top,
+        hdcWindow,
+        rect.left, rect.top,
+        SRCCOPY))
+    {
+        cout<<"BitBlt has failed"<<endl;
+        return FALSE;
+    }
    
 }
 
 BOOL restoreRect(HDC hdcWindow, HDC hdcMemDC, RECT destRect, RECT srcRect){
-     //make transfer from the memory to our window
-   if (!StretchBlt(hdcWindow,
-                    destRect.left, destRect.top, destRect.right, destRect.bottom,
-                    hdcMemDC,
-                    srcRect.left, srcRect.top, srcRect.right, srcRect.bottom,
-                    SRCCOPY))
-    {MessageBox(WindowFromDC(hdcWindow), "StretchBlt has failed", "Failed", MB_OK);return TRUE;}else return FALSE;
+    // Bit block transfer from our compatible memory DC.
+    if (!BitBlt(hdcWindow,
+        destRect.left, destRect.top,
+        destRect.right - destRect.left, destRect.bottom - destRect.top,
+        hdcMemDC,
+        0, 0,
+        SRCCOPY))
+    {
+        cout<<"BitBlt has failed"<<endl;
+        return FALSE;
+    }
+}
+
+PBITMAPINFO CreateBitmapInfoStruct(HWND hwnd, HBITMAP hBmp)//window handle is only for displaying messages
+{ 
+    BITMAP bmp; 
+    PBITMAPINFO pbmi; 
+    WORD    cClrBits; 
+
+    // Retrieve the bitmap color format, width, and height.  
+    if (!GetObject(hBmp, sizeof(BITMAP), (LPSTR)&bmp)) 
+        //errhandler("GetObject", hwnd); 
+        MessageBox(hwnd,"cant retrieve bitmap color format, width and height", "Failed", MB_OK);
+
+    // Convert the color format to a count of bits.  
+    cClrBits = (WORD)(bmp.bmPlanes * bmp.bmBitsPixel); 
+    if (cClrBits == 1) 
+        cClrBits = 1; 
+    else if (cClrBits <= 4) 
+        cClrBits = 4; 
+    else if (cClrBits <= 8) 
+        cClrBits = 8; 
+    else if (cClrBits <= 16) 
+        cClrBits = 16; 
+    else if (cClrBits <= 24) 
+        cClrBits = 24; 
+    else cClrBits = 32; 
+
+    // Allocate memory for the BITMAPINFO structure. (This structure  
+    // contains a BITMAPINFOHEADER structure and an array of RGBQUAD  
+    // data structures.)  
+
+     if (cClrBits < 24) 
+         pbmi = (PBITMAPINFO) LocalAlloc(LPTR, 
+                    sizeof(BITMAPINFOHEADER) + 
+                    sizeof(RGBQUAD) * (1<< cClrBits)); 
+
+     // There is no RGBQUAD array for these formats: 24-bit-per-pixel or 32-bit-per-pixel 
+
+     else 
+         pbmi = (PBITMAPINFO) LocalAlloc(LPTR, 
+                    sizeof(BITMAPINFOHEADER)); 
+
+    // Initialize the fields in the BITMAPINFO structure.  
+
+    pbmi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER); 
+    pbmi->bmiHeader.biWidth = bmp.bmWidth; 
+    pbmi->bmiHeader.biHeight = bmp.bmHeight; 
+    pbmi->bmiHeader.biPlanes = bmp.bmPlanes; 
+    pbmi->bmiHeader.biBitCount = bmp.bmBitsPixel; 
+    if (cClrBits < 24) 
+        pbmi->bmiHeader.biClrUsed = (1<<cClrBits); 
+
+    // If the bitmap is not compressed, set the BI_RGB flag.  
+    pbmi->bmiHeader.biCompression = BI_RGB; 
+
+    // Compute the number of bytes in the array of color  
+    // indices and store the result in biSizeImage.  
+    // The width must be DWORD aligned unless the bitmap is RLE 
+    // compressed. 
+    pbmi->bmiHeader.biSizeImage = ((pbmi->bmiHeader.biWidth * cClrBits +31) & ~31) /8
+                                  * pbmi->bmiHeader.biHeight; 
+    // Set biClrImportant to 0, indicating that all of the  
+    // device colors are important.  
+     pbmi->bmiHeader.biClrImportant = 0; 
+     return pbmi; 
+ }
+ 
+ void CreateBMPFile(HWND hwnd, LPTSTR pszFile, PBITMAPINFO pbi, 
+                  HBITMAP hBMP, HDC hDC) 
+ { 
+    HANDLE hf;                 // file handle  
+    BITMAPFILEHEADER hdr;       // bitmap file-header  
+    PBITMAPINFOHEADER pbih;     // bitmap info-header  
+    LPBYTE lpBits;              // memory pointer  
+    DWORD dwTotal;              // total count of bytes  
+    DWORD cb;                   // incremental count of bytes  
+    BYTE *hp;                   // byte pointer  
+    DWORD dwTmp; 
+    static int fileNum;
+
+    pbih = (PBITMAPINFOHEADER) pbi; 
+    lpBits = (LPBYTE) GlobalAlloc(GMEM_FIXED, pbih->biSizeImage);
+
+    if (!lpBits) 
+         //errhandler("GlobalAlloc", hwnd); 
+          MessageBox(hwnd, "Error in lpbits", "Failed", MB_OK);
+          return;
+
+    // Retrieve the color table (RGBQUAD array) and the bits  
+    // (array of palette indices) from the DIB.
+    //The GetDIBits function retrieves the bits of the specified
+    //compatible bitmap and copies them into a buffer as a DIB 
+    //using the specified format.
+    if (!GetDIBits(hDC, hBMP, 0, (WORD) pbih->biHeight, lpBits, pbi, 
+        DIB_RGB_COLORS)) 
+    {
+        //errhandler("GetDIBits", hwnd); 
+        MessageBox(hwnd, "can't retrieve color table", "Failed", MB_OK);
+    }
+
+    // Create the .BMP file.  
+    hf = CreateFile(pszFile, 
+                   GENERIC_READ | GENERIC_WRITE, 
+                   (DWORD) 0, 
+                    NULL, 
+                   CREATE_ALWAYS, 
+                   FILE_ATTRIBUTE_NORMAL, 
+                   (HANDLE) NULL); 
+    if (hf == INVALID_HANDLE_VALUE) 
+        //errhandler("CreateFile", hwnd); 
+        MessageBox(hwnd, "can't create bmp file!", "Failed", MB_OK);
+    hdr.bfType = 0x4d42;        // 0x42 = "B" 0x4d = "M"  
+    // Compute the size of the entire file.  
+    hdr.bfSize = (DWORD) (sizeof(BITMAPFILEHEADER) + 
+                 pbih->biSize + pbih->biClrUsed 
+                 * sizeof(RGBQUAD) + pbih->biSizeImage); 
+    hdr.bfReserved1 = 0; 
+    hdr.bfReserved2 = 0; 
+
+    // Compute the offset to the array of color indices.  
+    hdr.bfOffBits = (DWORD) sizeof(BITMAPFILEHEADER) + 
+                    pbih->biSize + pbih->biClrUsed 
+                    * sizeof (RGBQUAD); 
+
+    // Copy the BITMAPFILEHEADER into the .BMP file.  
+    if (!WriteFile(hf, (LPVOID) &hdr, sizeof(BITMAPFILEHEADER), 
+        (LPDWORD) &dwTmp,  NULL)) 
+    {
+       //errhandler("WriteFile", hwnd);
+       MessageBox(hwnd, "couldn't write header into the bitmpa file", "Failed", MB_OK);      
+    }
+
+    // Copy the BITMAPINFOHEADER and RGBQUAD array into the file.  
+    if (!WriteFile(hf, (LPVOID) pbih, sizeof(BITMAPINFOHEADER) 
+                  + pbih->biClrUsed * sizeof (RGBQUAD), 
+                  (LPDWORD) &dwTmp, ( NULL)))
+        //errhandler("WriteFile", hwnd);
+        MessageBox(hwnd, "couldn't copy bitmapinfo header and rgb quad array ", "Failed", MB_OK);
+
+    // Copy the array of color indices into the .BMP file.  
+    dwTotal = cb = pbih->biSizeImage; 
+    hp = lpBits; 
+    if (!WriteFile(hf, (LPSTR) hp, (int) cb, (LPDWORD) &dwTmp,NULL)) 
+           //errhandler("WriteFile", hwnd); 
+         MessageBox(hwnd, "couldn't copy array of color indices to the bmp file", "Failed", MB_OK);
+
+    // Close the .BMP file.  
+     if (!CloseHandle(hf)) 
+           //errhandler("CloseHandle", hwnd); 
+            MessageBox(hwnd, "couldn't close the bmp file", "Failed", MB_OK);
+
+    // Free memory.  
+    GlobalFree((HGLOBAL)lpBits);
 }
