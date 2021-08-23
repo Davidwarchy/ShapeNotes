@@ -40,10 +40,15 @@ paint
     
 
 problems
-1. initial bits are quite random
-2. the trail left by the left-bottom edge of the rectangle bounding the shape
+1. $initial bits are quite random
+     resolved after resolving 2
+2. $the trail left by the left-bottom edge of the rectangle bounding the shape
+     both one and two were caused by the reset that is done when we free up the memory using GlobalFree.
+     when GlobalFree is used after we restore an image, only one small dot is how for each image. 
+     what was hapening before was that we were resetting the first 64bits of the bitmap to random numbers, thus the random colors at the bottomleft of teh image.
 3. the loss of capacity to repair canvas from previous images when size seems to exceed a particular size
-
-
-    
+     this seemed to resolve after resolving 2
+4. stops painting after some time
+5. tiny dot at the bottom left of the image. 
+   the fact that this happens in the first image tells me that it is sth only occuring once and not any other time; in other words, only the first bitmap we create and draw 
   

@@ -144,6 +144,7 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
                 MessageBox(hwnd, "CreateCompatibleDC has failed", "Failed", MB_OK);
                 return 0;
             }
+            
             //create compatible bitmap
             hbmRcFrom = CreateCompatibleBitmap(hdcWindow, rcPrevious.right - rcPrevious.left, rcPrevious.bottom - rcPrevious.top);
             if (!hbmRcFrom)
@@ -151,22 +152,27 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
                 MessageBox(hwnd, "CreateCompatibleBitmap Failed", "Failed", MB_OK);
                 return 0;
             }
+            
             //select compatible bitmap into compatible dc
             SelectObject(hdcMemDCFrom, hbmRcFrom);
-              //results is the number of lines sets in the hdc. we can check whether this is still the same number as the height of the bitmap.
-              int result = SetDIBitsToDevice(hdcWindow,                   //handle to the device context we are drawing to
-                                             rcPrevious.left,             //$upper left x coord of destination rect
-                                             rcPrevious.top,              //upper left y coord of the destination rectangle.
-                                             pbmi->bmiHeader.biWidth,     //width of the image in pixels
-                                             pbmi->bmiHeader.biHeight,    //heigth of the image in pixels
-                                             0,                        //x-coord of lower left corner of the image
-                                             0,                        //y-coord of lower left corner of the image
-                                             0,                           //starting scanning lines
-                                             pbmi->bmiHeader.biHeight,    //number of DIB scan lines contained in the array pointed to by lpvBits
-                                             lpbitmap,                    //$a pointer to the color data stored in an array of bytes
-                                             pbmi,                        //$a pointer to the BMI structure containing info about he DIB
-                                             DIB_RGB_COLORS               //$whether the bmiColors member of the BMI has color indeces
-                                             );
+            
+            //send color bits form the memory buffer to the hdc
+            //results is the number of lines sets in the hdc. we can check whether this is still the same number as the height of the bitmap.
+            int result = SetDIBitsToDevice(hdcWindow,                   //handle to the device context we are drawing to
+                                           rcPrevious.left,             //$upper left x coord of destination rect
+                                           rcPrevious.top,              //upper left y coord of the destination rectangle.
+                                           pbmi->bmiHeader.biWidth,     //width of the image in pixels
+                                           pbmi->bmiHeader.biHeight,    //heigth of the image in pixels
+                                           0,                           //x-coord of lower left corner of the image
+                                           0,                           //y-coord of lower left corner of the image
+                                           0,                           //starting scanning lines
+                                           pbmi->bmiHeader.biHeight,    //number of DIB scan lines contained in the array pointed to by lpvBits
+                                           lpbitmap,                    //$a pointer to the color data stored in an array of bytes
+                                           pbmi,                        //$a pointer to the BMI structure containing info about he DIB
+                                           DIB_RGB_COLORS               //$whether the bmiColors member of the BMI has color indeces
+                                           );
+            //
+            GlobalFree((HGLOBAL)lpbitmap);
         }
         
         //###CAPTURE IMAGE UNDER RECTANGLE
@@ -189,16 +195,15 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
         
         //select compatible bitmap into compatible dc
         SelectObject(hdcMemDCTo, hbmRcTo);
-        //captureRect(hdcWindow, hdcMemDCTo, rcTarget);
         
         //get the bitmap from the window client area to an actual bitmap
         //!i think there might be some confusion here. I got the bitmap from the handle into the bitmap object's memory
-        //!and i also passed the handle to the bitmap to the CreateBitmapInfoStruct which ofcourse will not change the contents of the bitmap we desire.
+        //!and i also passed the handle to the bitmap to the CreateBitmapInfoStruct which of course will not change the contents of the bitmap we desire.
         //!here i think one could check at what is really being modified as a bitmap. Is it that which is pointed to by hbmRcTo or is it the object bmRcTo?
         GetObject(hbmRcTo, sizeof(BITMAP), &bmRcTo);
-        bmRcTo.bmBits = lpbitmap;
         bmRcTo.bmBitsPixel = 32;
-        cout<<"type\t"<<bmRcTo.bmType<<", width\t"<<bmRcTo.bmWidth<<", height\t"<<bmRcTo.bmHeight<<", width(b)\t"<<bmRcTo.bmWidthBytes<<", planes\t"<<bmRcTo.bmPlanes<<", bitsPP\t"<<bmRcTo.bmBitsPixel<<", array pointer\t"<<bmRcTo.bmBits<<endl;
+        //cout<<"type\t"<<bmRcTo.bmType<<", width\t"<<bmRcTo.bmWidth<<", height\t"<<bmRcTo.bmHeight<<", width(b)\t"<<bmRcTo.bmWidthBytes<<", planes\t"<<bmRcTo.bmPlanes<<", bitsPP\t"<<bmRcTo.bmBitsPixel<<", array pointer\t"<<bmRcTo.bmBits<<endl;
+        
         //!the pbmi can also show us the dimensions of the bitmap info. we could check the width and the height and the colors being used.
         pbmi = CreateBitmapInfoStruct(hwnd, hbmRcTo);//the hwnd is only for displaying errors.
         
@@ -210,7 +215,7 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
         
         if (!BitBlt(hdcMemDCTo,
               0, 0,
-              rcTarget.right - rcTarget.left, rcTarget.bottom - rcTarget.top,
+              rcTarget.right - rcTarget.left+1, rcTarget.bottom - rcTarget.top+1,
               hdcWindow,
               rcTarget.left, rcTarget.top,
               SRCCOPY))
@@ -218,20 +223,20 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
               cout<<"BitBlt has failed"<<endl;
               return FALSE;
           }
-          
-        // Gets the "bits" from the bitmap, and copies them into a buffer 
-        // that's pointed to by lpbitmap.
+        
+        // Gets the bytes from the bitmap, and copies them into a buffer 
+        // that's pointed to by lpbitmap (the pointer in the bitmap structure to where the imge bytes pixell bytes are.
         GetDIBits(hdcMemDCTo, hbmRcTo, 0,
         (UINT)pbmi->bmiHeader.biHeight,
         lpbitmap,
         pbmi, DIB_RGB_COLORS);
         
-        // LONG* longstuff = (LONG*)lpbitmap;
-        // cout<<"image size is"<<pbmi->bmiHeader.biSizeImage<<"bytes"<<endl;
-        // for(int i=0;i<pbmi->bmiHeader.biSizeImage/4;i++){
-          //cout<<"\t"<<*(longstuff+i);
-          // *(longstuff+i) = 0x00ff0000;
-        // }
+        LONG* longstuff = (LONG*)lpbitmap;
+        cout<<"\n######################BEFORE##########################"<<endl;
+        for(int i=0;i<pbmi->bmiHeader.biWidth;i++){
+          if(i%6==0){printf("\n");}
+          printf("0x%08x\t",*(longstuff+i));
+        }
         
         //DRAW RECTANGLE
         Ellipse(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
@@ -239,9 +244,7 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
         ReleaseDC(hwnd, hdcWindow);
         bGaugingSize = TRUE;
         
-        
-        // Free memory.  
-        GlobalFree((HGLOBAL)lpbitmap);
+        // Free memory.
       }
       return 0;
     case WM_LBUTTONUP:
@@ -251,19 +254,10 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
         p->rect = rcTarget;
         p->shapeID = 2;
         
-        // {
-          // LONG* longstuff = (LONG*)lpbitmap;
-          // cout<<"###"<<hex<<*(longstuff -1)<<endl;
-          // cout<<"image size is"<<pbmi->bmiHeader.biSizeImage<<"bytes"<<endl;
-          // for(int i=0;i<pbmi->bmiHeader.biSizeImage/4;i++){
-            // printf("%08x\t",*(longstuff+i));
-          // }
-        // }
       }
       bDrawing = FALSE;
       bGaugingSize = FALSE;
-      //rcPrevious.top = rcPrevious.bottom = rcPrevious.left = rcPrevious.right = 0;
-      //perhaps remember to delete stuff like bitmaps and all
+     
       return 0;
     default:
       return DefWindowProc(hwnd, msg, param, lparam);
