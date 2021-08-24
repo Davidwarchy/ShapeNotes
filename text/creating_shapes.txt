@@ -70,3 +70,13 @@ problems
 5. tiny dot at the bottom left of the image. 
    the fact that this happens in the first image tells me that it is sth only occuring once and not any other time; in other words, only the first bitmap we create and draw 
   
+#####################################################
+properties of a shape
+  position in the window (position of the bounding rectangle)
+  type of shape (ellipse, rectange, rounded rectangle)
+  border style
+  border color
+  inside color (fill)
+  
+  
+https://documentation.help/Win32/FAQ.htm may actually help if i need to reduce flicker.
