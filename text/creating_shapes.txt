@@ -46,9 +46,27 @@ problems
      both one and two were caused by the reset that is done when we free up the memory using GlobalFree.
      when GlobalFree is used after we restore an image, only one small dot is how for each image. 
      what was hapening before was that we were resetting the first 64bits of the bitmap to random numbers, thus the random colors at the bottomleft of teh image.
-3. the loss of capacity to repair canvas from previous images when size seems to exceed a particular size
+3. $the loss of capacity to repair canvas from previous images when size seems to exceed a particular size
      this seemed to resolve after resolving 2
-4. stops painting after some time
+4. $stops painting after some time
+     i don't know what the problem for this could be. i suspect that i'm duplicating memory and doing sth illegal.
+     my suspicion that it had to do with memory was confirmed when i look at the task manager. i don't know how to look at memory dumps, but i would want to know the variables which are dublicating in my application.
+     
+     test:
+        ->declaration of varibles: no visible change (increase) in memory usage
+        
+        ->using GlobalFree((HGLOBAL)lpbitmap): no change in memory usage; what changes is the location of where the pointer of the next assiingment is.
+        When GlobalFree((HGLOBAL)lpbitmap) is used, the pointer maybe the same as the previous one or near it. when it isn't used, the pointer is in most cases some number of bits forwards, that is, it is greater than the last one by atleast the amount GlobalAlloc issued. So it isn't this which is causing hoarding of memory. Is it declarations? 
+        
+        ->calling the CreateBitmapInfoStruct function. this seems to use memory well.
+        
+        ->tried deleting pointer to the bitmap info since i thought it might be duplicating. the program crashed. reproduced the problem with an ordinary pointer to an integer. i  declared the integer and it's pointer. the program crashed as well. i don' think this is legal in c++. i think delete is only used when new also has been used.
+        
+        -> i tried freeing the global memory immediately after capturing. the problem with this is that it preserves the trail. reason? when we free global memory, it resets the first eight bytes starting at the address of the pointer. Therefore colors will be extrenous. The best place to free memory would be after we have restored the image and after there is not any need to preserve an image (that is after drawing is complete). i did this and the problem of memory consumption was done with.
+        
+        i think that if one was to consider how to make a computer make stuff by itself, it would necessarily know some basic fundametal stuff about shapes and windows and memories. what i mean is that, if the use of computer memory increases unnecessarily, the computer program would know to tweak it's code. and also, if a window appeared or failed to appear, it would know to do sth about it.
+        
+        -> 
 5. tiny dot at the bottom left of the image. 
    the fact that this happens in the first image tells me that it is sth only occuring once and not any other time; in other words, only the first bitmap we create and draw 
   
