@@ -80,3 +80,16 @@ properties of a shape
   
   
 https://documentation.help/Win32/FAQ.htm may actually help if i need to reduce flicker.
+
+#######################################################
+i think i now want to be able to write text on my computer. what i didn't know was how complex this whole thing was going to be. for example, to be able to display formatted text on a monitor in real time as opposed to printing out preformatted text, i think the folowing steps need be taken:
+  1. get the window handle.
+  2. get the position of the last click or the first line in the document
+  3. get keyboard input messages from the window
+  4. display the text at the position of the cursor.
+i don't think one can sufficiently explain the power of abstraction they happen to want to create a computer program from calls to the OS. it is very tough. even stuff that seem basic like text entry are layered with levels upon levels.
+
+i have considered the nature of window such as this in windows and i have see that when operating with windows, i can break them up into several pieces that i think are imporatan:
+1. universal shortcuts - undo, selection, navigation, etc
+2. layout of the working are and the control area. the working are and the control area should be well defined.
+3. aesthetics should be considered. fonts, backgrounds, sizes and how they fit into one another. i think these are importnat things

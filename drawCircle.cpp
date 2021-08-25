@@ -1,16 +1,15 @@
 //Obtained from https://gist.github.com/atoz-programming-tutorials/f0c00244acf913c086f3eb9840dec614#file-win32_gdiplus-cpp-L8 
 //run with g++ win32_gdiplus.cpp -lgdiplus -lgdi32
 
-
-#define ID_BLUE 1
-#define ID_YELLOW 2
-#define ID_ORANGE 3
-#define ID_BLACK 4
-
 #include <windows.h>
 #include <gdiplus.h>//GDI functions for Graphics, Pens and Brushes and more
 #include<iostream>
 #include<forward_list>
+
+//for shapes menu
+#define IDM_MODE_ELLIPSE    1
+#define IDM_MODE_RECTANGLE  2
+#define IDM_MODE_ROUNDED    3
 
 using namespace std;
 
@@ -25,6 +24,7 @@ class Shape {
 
 //VARIABLES GLOBAL
 forward_list<Shape*> shapes;
+HMENU hMenu;
 
 //FUNCTIONS
 LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM lparam);
@@ -34,20 +34,16 @@ template <typename T> int forward_list_size(const forward_list<T>& lst);//for re
 void testShapes();
 BOOL captureRect(HDC hdcWindow, HDC hdcMemDC, RECT previousRect);
 BOOL restoreRect(HDC hdcWindow, HDC hdcMemDC, RECT destRect, RECT srcRect);
-void CreateBMPFile(HWND hwnd, LPTSTR pszFile, PBITMAPINFO pbi, 
-                  HBITMAP hBMP, HDC hDC);
+void CreateBMPFile(HWND hwnd, LPTSTR pszFile, PBITMAPINFO pbi,   HBITMAP hBMP, HDC hDC);
 PBITMAPINFO CreateBitmapInfoStruct(HWND hwnd, HBITMAP hBmp);
+void AddMenus(HWND hwnd);
 
-HINSTANCE dInstance;
-COLORREF dColor;
 
 int WINAPI WinMain(HINSTANCE currentInstance, HINSTANCE previousInstance, PSTR cmdLine, INT cmdCount) {
 	// Initialize GDI+
 	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR gdiplusToken;
 	Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
-
-  dInstance = currentInstance;
   
 	// Register the window class
 	const char *CLASS_NAME = "myWin32WindowClass";
@@ -98,48 +94,38 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
   
   static HPEN hPenDefault;      //default pen
   static HBRUSH hBrushDefault;  //default brush
+  static int shapeMode;
+  static COLORREF dColor;
   
 	switch (msg) {
     
      case WM_CREATE:
-        CreateWindowW(L"Button", L"Choose colour", 
-              WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-              10, 10, 120, 110, hwnd, (HMENU) 0, dInstance, NULL);
-        CreateWindowW(L"Button", L"Blue",
-              WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-              20, 30, 100, 30, hwnd, (HMENU) ID_BLUE , dInstance, NULL);
-        CreateWindowW(L"Button", L"Yellow",
-              WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-              20, 55, 100, 30, hwnd, (HMENU) ID_YELLOW , dInstance, NULL);
-        CreateWindowW(L"Button", L"Orange",
-              WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-              20, 80, 100, 30, hwnd, (HMENU) ID_ORANGE , dInstance, NULL); 
-        CreateWindowW(L"Button", L"Black",
-              WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-              20, 105, 100, 30, hwnd, (HMENU) ID_BLACK , dInstance, NULL);   
+     {
+        //add menu
+        AddMenus(hwnd);  
+        
+        shapeMode = IDM_MODE_ELLIPSE;
         break;
-            
+     } 
+     
      case WM_COMMAND:
-            if (HIWORD(param) == BN_CLICKED) {
-            
-                switch (LOWORD(param)) {
-                
-                    case ID_BLUE:
-                        dColor = RGB(0, 76, 255);
-                        break;
-                    case ID_YELLOW:
-                        dColor = RGB(255, 255, 0);
-                        break;
-                    case ID_ORANGE:
-                        dColor = RGB(255, 123, 0);
-                        break;
-                    case ID_BLACK:
-                        dColor = RGB(0, 0, 0);
-                        break;
-                }                    
-                //InvalidateRect(hwnd, NULL, TRUE);
-            }
-            break;
+        switch(LOWORD(param)) {
+          case IDM_MODE_ELLIPSE:
+              CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_ROUNDED, IDM_MODE_ELLIPSE, MF_BYCOMMAND);
+              shapeMode = IDM_MODE_ELLIPSE;
+              break;
+
+          case IDM_MODE_RECTANGLE:
+              CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_ROUNDED, IDM_MODE_RECTANGLE, MF_BYCOMMAND);
+              shapeMode = IDM_MODE_RECTANGLE;
+              break;
+
+          case IDM_MODE_ROUNDED:
+              CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_ROUNDED, IDM_MODE_ROUNDED, MF_BYCOMMAND);
+              shapeMode = IDM_MODE_ROUNDED;
+              break;
+        }
+       break;
             
     case WM_PAINT:
       hdcWindow = BeginPaint(hwnd, &ps);//returns handle to to the display device context
@@ -259,7 +245,18 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
         SelectObject(hdcWindow, hBrushDefault);
         
         //DRAW RECTANGLE
-        Ellipse(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
+        switch(shapeMode){
+            case IDM_MODE_ELLIPSE:
+                Ellipse(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
+                break;
+            case IDM_MODE_RECTANGLE:
+                Rectangle(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
+                break;
+            case IDM_MODE_ROUNDED:
+                RoundRect(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom, 100, 100);
+                break;
+        }
+                
         rcPrevious = rcTarget;
         bGaugingSize = TRUE;
         ReleaseDC(hwnd, hdcWindow);
@@ -479,4 +476,21 @@ PBITMAPINFO CreateBitmapInfoStruct(HWND hwnd, HBITMAP hBmp)//window handle is on
 
     // Free memory.  
     GlobalFree((HGLOBAL)lpBits);
+}
+
+void AddMenus(HWND hwnd) {
+
+    HMENU hMenubar;
+
+    hMenubar = CreateMenu();
+    hMenu = CreateMenu();
+
+    AppendMenuW(hMenu, MF_STRING, IDM_MODE_ELLIPSE, L"&Ellipse");
+    AppendMenuW(hMenu, MF_STRING, IDM_MODE_RECTANGLE, L"&Rectangle");
+    AppendMenuW(hMenu, MF_STRING, IDM_MODE_ROUNDED, L"&Rounded Rectangle");
+
+    CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_ROUNDED, IDM_MODE_ELLIPSE, MF_BYCOMMAND);
+
+    AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR) hMenu, L"&Shapes");
+    SetMenu(hwnd, hMenubar);
 }
