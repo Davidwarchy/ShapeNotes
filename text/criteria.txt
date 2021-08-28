@@ -2,4 +2,5 @@ criterion for success
  1. can draw simple shapes like squares.
  2. can write text at the point where the cursor is .
 
-I forgot to give aesthetic criteria, but have decided to skip that. i might include it in my next project
+I forgot to give aesthetic criteria, but have decided to skip that. i might include it in my next project. 
+For the aesthetic stuff: i think the menu names gotta look a little bit good too, how color is combined generally and whatever else one might think up. i also think that how things appear when editing should be how they appear after the edit is complete. I'm quite worried about some features not being like this currently. Support for chinese too, or some other universal languages would be really desirable.

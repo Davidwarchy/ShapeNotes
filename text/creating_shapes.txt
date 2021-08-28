@@ -89,7 +89,77 @@ i think i now want to be able to write text on my computer. what i didn't know w
   4. display the text at the position of the cursor.
 i don't think one can sufficiently explain the power of abstraction they happen to want to create a computer program from calls to the OS. it is very tough. even stuff that seem basic like text entry are layered with levels upon levels.
 
-i have considered the nature of window such as this in windows and i have see that when operating with windows, i can break them up into several pieces that i think are imporatan:
+i have considered the nature of window such as this in windows and i have see that when operating with windows, i can break them up into several pieces that i think are important:
 1. universal shortcuts - undo, selection, navigation, etc
 2. layout of the working are and the control area. the working are and the control area should be well defined.
 3. aesthetics should be considered. fonts, backgrounds, sizes and how they fit into one another. i think these are importnat things
+
+#######################################################
+I WANT TO ADD THE WRITING OF TEXT INTO MY SOFTWARE
+When mode to write text is selected.
+mouse down.
+    if writing is active
+    if click is outside, validate text
+    transfer text to canvas
+    destroy the edit window
+    set writing inactive
+    
+mouse up
+    if mode is drawing text
+      draw a text edit window.
+      set writing active
+    close the text box and draw the text to the canvas.
+    set writing inactive
+    
+mouse move
+    if drawing is active
+    draw the rectangle for the text edits window.
+
+RIGHT NOW I THNK THE SEQUENCE OF ACTIONS FOR DRAWING IS AS FOLLOWS
+mouse down
+    set first point
+    set drawing active
+  
+mouse move
+    check if drawing is active
+    get the point.
+    get them to rectangle & validate the rectangle
+    restore previous image underrectangle if there was any
+    capture the new image under the new rectangle
+    draw the selected shape
+    
+mouse up
+    set drawing inactive
+  
+TO INTEGRATE TEXT INTO THE SEQUENCE WE MIGHT DO THE FOLLOWING
+the text within braces is the one for text
+mouse down
+    set first point
+    set drawing active
+    {   if writing is active
+        if click is outside, validate text
+        transfer text to canvas
+        destroy the edit window
+        set writing inactive
+    }
+  
+mouse move
+    check if drawing is active
+    get the point.
+    get them to rectangle & validate the rectangle
+    restore previous image underrectangle if there was any
+    capture the new image under the new rectangle
+    draw the selected shape
+    {
+      if text mode is active
+      draw the rectangle for the text edits window.
+    }
+    
+mouse up
+    {
+      if mode is drawing text & drawing active 
+        draw a text edit window.
+        set writing active
+    }
+    set drawing inactive
+    

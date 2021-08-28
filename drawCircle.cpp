@@ -10,6 +10,16 @@
 #define IDM_MODE_ELLIPSE    1
 #define IDM_MODE_RECTANGLE  2
 #define IDM_MODE_ROUNDED    3
+#define IDM_MODE_TEXT       4
+
+#define IDM_FILL_NONE       5
+#define IDM_FILL_WHITE      6
+#define IDM_FILL_RED        7
+#define IDM_FILL_BLUE       8
+#define IDM_FILL_YELLOW     9
+#define IDM_FILL_BLACK      10
+
+#define ID_EDITCHILD        100
 
 using namespace std;
 
@@ -25,6 +35,7 @@ class Shape {
 //VARIABLES GLOBAL
 forward_list<Shape*> shapes;
 HMENU hMenu;
+HMENU hFillMenu;
 
 //FUNCTIONS
 LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM lparam);
@@ -80,22 +91,28 @@ int WINAPI WinMain(HINSTANCE currentInstance, HINSTANCE previousInstance, PSTR c
 }
 
 LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM lparam) {
+  static HWND hwndEdit;                //window for inputing text
 	HDC hdcWindow;                //drawing context to main window
   HDC hdcMemDCTo;               //drawing context to memory place
   HBITMAP hbmRcTo;              //handle to the bitmap of image we are capturing
   static PBITMAPINFO pbmi;
   static char* lpbitmap;        //pointer to the bytes 
 	PAINTSTRUCT ps;               //bitmap being restored
-  static POINT pt;              //position of mouse
+  static POINT pt;              //position of mouse==
   static RECT rcTarget;         //rectangle formed in last move
   static RECT rcPrevious;       //rectangle formed in previous move
   static BOOL bDrawing;         //is in drawing mode
   static BOOL bGaugingSize;     //is true if the user is just deciding what size the image is
+  static BOOL bWriting;         //is true if user is inputing text
   
   static HPEN hPenDefault;      //default pen
   static HBRUSH hBrushDefault;  //default brush
   static int shapeMode;
+  static int fillMode;
   static COLORREF dColor;
+  static HFONT hTextFont;
+  
+  TCHAR lpszSample[] =  "Sample Text";
   
 	switch (msg) {
     
@@ -103,44 +120,117 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
      {
         //add menu
         AddMenus(hwnd);  
-        
-        shapeMode = IDM_MODE_ELLIPSE;
+        shapeMode = IDM_MODE_TEXT;
+        dColor = RGB(255, 255, 255);
         break;
      } 
      
      case WM_COMMAND:
         switch(LOWORD(param)) {
           case IDM_MODE_ELLIPSE:
-              CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_ROUNDED, IDM_MODE_ELLIPSE, MF_BYCOMMAND);
+              CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_TEXT, IDM_MODE_ELLIPSE, MF_BYCOMMAND);
               shapeMode = IDM_MODE_ELLIPSE;
               break;
 
           case IDM_MODE_RECTANGLE:
-              CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_ROUNDED, IDM_MODE_RECTANGLE, MF_BYCOMMAND);
+              CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_TEXT, IDM_MODE_RECTANGLE, MF_BYCOMMAND);
               shapeMode = IDM_MODE_RECTANGLE;
               break;
 
           case IDM_MODE_ROUNDED:
-              CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_ROUNDED, IDM_MODE_ROUNDED, MF_BYCOMMAND);
+              CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_TEXT, IDM_MODE_ROUNDED, MF_BYCOMMAND);
               shapeMode = IDM_MODE_ROUNDED;
+              break;
+              
+          case IDM_MODE_TEXT:
+              CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_TEXT, IDM_MODE_TEXT, MF_BYCOMMAND);
+              shapeMode = IDM_MODE_TEXT;
+              break;
+              
+          case IDM_FILL_NONE:
+              CheckMenuRadioItem(hFillMenu, IDM_FILL_NONE, IDM_FILL_BLACK, IDM_FILL_NONE, MF_BYCOMMAND);
+              fillMode = IDM_FILL_NONE;
+              break;
+          case IDM_FILL_RED:
+              SetROP2(hdcWindow, R2_BLACK);
+              dColor = RGB(255,0,0);
+              fillMode = IDM_FILL_RED;
+              CheckMenuRadioItem(hFillMenu, IDM_FILL_NONE, IDM_FILL_BLACK, IDM_FILL_RED, MF_BYCOMMAND);
+              break;
+          case IDM_FILL_WHITE:
+              SetROP2(hdcWindow, R2_BLACK);
+              dColor = RGB(255,255,255);
+              fillMode = IDM_FILL_WHITE;
+              CheckMenuRadioItem(hFillMenu, IDM_FILL_NONE, IDM_FILL_BLACK, IDM_FILL_WHITE, MF_BYCOMMAND);
+              break;
+          case IDM_FILL_BLUE:
+              dColor = RGB(0,0,255);
+              SetROP2(hdcWindow, R2_BLACK);
+              fillMode = IDM_FILL_BLUE;
+              CheckMenuRadioItem(hFillMenu, IDM_FILL_NONE, IDM_FILL_BLACK, IDM_FILL_BLUE, MF_BYCOMMAND);
+              break;
+          case IDM_FILL_YELLOW:
+              dColor = RGB(255,255,0);
+              SetROP2(hdcWindow, R2_BLACK);
+              fillMode = IDM_FILL_YELLOW;
+              CheckMenuRadioItem(hFillMenu, IDM_FILL_NONE, IDM_FILL_BLACK, IDM_FILL_YELLOW, MF_BYCOMMAND);
+              break;
+          case IDM_FILL_BLACK:
+              dColor = RGB(0,0,0);
+              SetROP2(hdcWindow, R2_BLACK);
+              fillMode = IDM_FILL_BLACK;
+              CheckMenuRadioItem(hFillMenu, IDM_FILL_NONE, IDM_FILL_BLACK, IDM_FILL_BLACK, MF_BYCOMMAND);
               break;
         }
        break;
             
     case WM_PAINT:
+    {
       hdcWindow = BeginPaint(hwnd, &ps);//returns handle to to the display device context
       //retrieveShapes(hwnd);
       EndPaint(hwnd, &ps);//ends paint and releases the dc
       ReleaseDC(hwnd, hdcWindow);
       return 0;
-      
+    }
     case WM_DESTROY:
       PostQuitMessage(0);
       return 0;
       
     case WM_LBUTTONDOWN:
+      if( bWriting&&
+          hwndEdit&&
+          (PtInRect(&rcTarget, pt)==FALSE)
+        ){
+          
+          //get text from window
+          int lengthOfInput = GetWindowTextLength(hwndEdit)+1;
+          char text[lengthOfInput];
+          GetWindowText(hwndEdit, (LPSTR)&text, lengthOfInput);
+          
+          //draw on window
+          hdcWindow = GetDC(hwnd);
+          DestroyWindow(hwndEdit);
+          //SelectObject(hdcWindow, hTextFont);
+          SetBkColor(hdcWindow, dColor);
+          
+          if(text!=lpszSample){
+            int heightOfWords;
+            RECT rcText = rcTarget;
+            heightOfWords = DrawText(hdcWindow, text, -1,&rcTarget, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
+            rcTarget.top -= 10; rcTarget.right +=10; rcTarget.left -= 10;
+            rcTarget.bottom = rcTarget.bottom + heightOfWords/2;
+            
+            Rectangle(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
+            DrawText(hdcWindow, text, -1,&rcText, DT_LEFT | DT_NOCLIP | DT_WORDBREAK | DT_EDITCONTROL);
+          }
+          
+          ReleaseDC(hwnd, hdcWindow);
+        
+        }
+      
       pt.x = (LONG) LOWORD(lparam); 
-      pt.y = (LONG) HIWORD(lparam); 
+      pt.y = (LONG) HIWORD(lparam);
+      bWriting = FALSE;
       bDrawing = TRUE;
       return 0;
       
@@ -238,12 +328,19 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
         lpbitmap,
         pbmi, DIB_RGB_COLORS);
         
-        
+        //set brushes and pens
         hPenDefault = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
-        hBrushDefault = CreateSolidBrush(dColor);
-        SelectObject(hdcWindow, hPenDefault);
-        SelectObject(hdcWindow, hBrushDefault);
         
+        if(fillMode==IDM_FILL_NONE){
+          SetROP2(hdcWindow, R2_NOT);
+          SelectObject(hdcWindow, hPenDefault);
+          SelectObject(hdcWindow, GetStockObject(NULL_BRUSH));
+        }else{
+          hBrushDefault = CreateSolidBrush(dColor);
+          SelectObject(hdcWindow, hPenDefault);
+          SelectObject(hdcWindow, hBrushDefault);
+        }
+         
         //DRAW RECTANGLE
         switch(shapeMode){
             case IDM_MODE_ELLIPSE:
@@ -255,6 +352,13 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
             case IDM_MODE_ROUNDED:
                 RoundRect(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom, 100, 100);
                 break;
+            case IDM_MODE_TEXT:
+                SetROP2(hdcWindow, R2_NOT);
+                SelectObject(hdcWindow, hPenDefault);
+                SelectObject(hdcWindow, GetStockObject(NULL_BRUSH));
+                Rectangle(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
+                bWriting = TRUE;
+                
         }
                 
         rcPrevious = rcTarget;
@@ -268,16 +372,64 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
       }
       return 0;
     case WM_LBUTTONUP:
-      if(bDrawing==TRUE){
-        // Shape* p  = new Shape();
-        // shapes.push_front(p);
-        // p->rect = rcTarget;
-        // p->shapeID = 2;
-      }
-      bDrawing = FALSE;
-      bGaugingSize = FALSE;
-      GlobalFree((HGLOBAL)lpbitmap);
-      return 0;
+        if(bDrawing==TRUE){
+          // Shape* p  = new Shape();
+          // shapes.push_front(p);
+          // p->rect = rcTarget;
+          // p->shapeID = 2;
+        }
+        
+        //create edit control if the rectangle drawn is sizeable.
+        if( (shapeMode==IDM_MODE_TEXT)&&        //mode is for text shape
+            bWriting&&                        //user is able to enter text right now
+            (pt.x != (LONG)LOWORD(lparam))&&  //current point up isn't the original point
+            (pt.y != (LONG) HIWORD(lparam))
+            ){
+          
+          // if(hwndEdit){
+              // DestroyWindow(hwndEdit);
+          // }
+          
+          //clear the guide rectangle from screen.
+          
+          hwndEdit = CreateWindowEx(
+                            0, "EDIT",   // predefined class 
+                            "INNER CHILD",         // no window title 
+                            WS_CHILD | WS_VISIBLE | WS_BORDER|
+                            ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL |ES_NOHIDESEL , 
+                            rcTarget.left, rcTarget.top, rcTarget.right - rcTarget.left, rcTarget.bottom - rcTarget.top,   // set size in WM_SIZE message 
+                            hwnd,         // parent window 
+                            (HMENU) ID_EDITCHILD,   // edit control ID 
+                            (HINSTANCE) GetWindowLongPtr(hwnd, GWLP_HINSTANCE), 
+                            NULL);        // pointer not needed  
+                                    
+          hTextFont = CreateFontA(       20,                        //int   cHeight
+                                         0,                         //int   cWidth
+                                         0,                         //int   cEscapement,
+                                         0,                         //int   cOrientation, 
+                                         400,                       //int   cWeight,
+                                         TRUE,                      //DWORD bItalic,
+                                         FALSE,                     //DWORD bUnderline,
+                                         FALSE,                     //DWORD bStrikeOut,
+                                         ANSI_CHARSET,              //DWORD iCharSet,
+                                         OUT_DEFAULT_PRECIS,        //DWORD iOutPrecision,
+                                         CLIP_DEFAULT_PRECIS,       //DWORD iClipPrecision,
+                                         PROOF_QUALITY,             //DWORD iQuality,
+                                         VARIABLE_PITCH|FF_DECORATIVE,             //DWORD iPitchAndFamily,               
+                                         "Comic Sans MS"                  //LPCSTR pszFaceName
+                                        );
+                                        
+          // set font, add text, set focus and select text
+          //SendMessage(hwndEdit, WM_SETFONT, WPARAM(hTextFont), TRUE);
+          SendMessage(hwndEdit, WM_SETTEXT, 0, (LPARAM) lpszSample); 
+          SetFocus(hwndEdit);
+          SendMessage(hwndEdit, EM_SETSEL , (WPARAM)(0), (LPARAM)(-1)); 
+        }
+        
+        bDrawing = FALSE;
+        bGaugingSize = FALSE;
+        GlobalFree((HGLOBAL)lpbitmap);
+        return 0;
     default:
       return DefWindowProc(hwnd, msg, param, lparam);
 	}
@@ -290,7 +442,7 @@ LRESULT retrieveShapes(HWND hwnd)
   
   static HPEN hPenDefault;      //default pen
   static HBRUSH hBrushDefault;  //default brush
-    hPenDefault = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
+  hPenDefault = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
   hBrushDefault = CreateSolidBrush(RGB(0, 0, 255));
   
   int no_of_shapes = forward_list_size(shapes);
@@ -299,7 +451,7 @@ LRESULT retrieveShapes(HWND hwnd)
   if(no_of_shapes<=0){
     return 0;
   }
-  cout<<no_of_shapes<<endl;
+  
   //if there are any shapes
 	PAINTSTRUCT ps;
 	HDC			hdc;
@@ -488,9 +640,19 @@ void AddMenus(HWND hwnd) {
     AppendMenuW(hMenu, MF_STRING, IDM_MODE_ELLIPSE, L"&Ellipse");
     AppendMenuW(hMenu, MF_STRING, IDM_MODE_RECTANGLE, L"&Rectangle");
     AppendMenuW(hMenu, MF_STRING, IDM_MODE_ROUNDED, L"&Rounded Rectangle");
-
-    CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_ROUNDED, IDM_MODE_ELLIPSE, MF_BYCOMMAND);
-
+    AppendMenuW(hMenu, MF_STRING, IDM_MODE_TEXT, L"&Text");
+    CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_TEXT, IDM_MODE_TEXT, MF_BYCOMMAND);
     AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR) hMenu, L"&Shapes");
+    
+    hFillMenu= CreateMenu();
+    AppendMenuW(hFillMenu, MF_STRING, IDM_FILL_NONE, L"&None");
+    AppendMenuW(hFillMenu, MF_STRING, IDM_FILL_WHITE, L"&White");
+    AppendMenuW(hFillMenu, MF_STRING, IDM_FILL_RED, L"&Red");
+    AppendMenuW(hFillMenu, MF_STRING, IDM_FILL_BLUE, L"&Blue");
+    AppendMenuW(hFillMenu, MF_STRING, IDM_FILL_YELLOW, L"&Yellow");
+    AppendMenuW(hFillMenu, MF_STRING, IDM_FILL_BLACK, L"&Black");
+    CheckMenuRadioItem(hFillMenu, IDM_FILL_NONE, IDM_FILL_BLACK, IDM_FILL_WHITE, MF_BYCOMMAND);
+    AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR) hFillMenu, L"&Fill");
+    
     SetMenu(hwnd, hMenubar);
 }
