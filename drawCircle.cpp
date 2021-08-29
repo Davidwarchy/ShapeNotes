@@ -148,6 +148,7 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
               break;
               
           case IDM_FILL_NONE:
+              dColor = RGB(255,255,255);
               CheckMenuRadioItem(hFillMenu, IDM_FILL_NONE, IDM_FILL_BLACK, IDM_FILL_NONE, MF_BYCOMMAND);
               fillMode = IDM_FILL_NONE;
               break;
@@ -197,8 +198,11 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
       return 0;
       
     case WM_LBUTTONDOWN:
+      {
+      pt.x = (LONG) LOWORD(lparam); 
+      pt.y = (LONG) HIWORD(lparam); 
+      
       if( bWriting&&
-          hwndEdit&&
           (PtInRect(&rcTarget, pt)==FALSE)
         ){
           
@@ -213,27 +217,30 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
           //SelectObject(hdcWindow, hTextFont);
           SetBkColor(hdcWindow, dColor);
           
-          if(text!=lpszSample){
+          
+          cout<<"length is "<<lengthOfInput<<endl;
+          if((strcmp(lpszSample, text)!=0)&&    //string isn't sample text
+             (lengthOfInput>1)                  //string not empty
+             ){
             int heightOfWords;
             RECT rcText = rcTarget;
-            heightOfWords = DrawText(hdcWindow, text, -1,&rcTarget, DT_LEFT | DT_WORDBREAK | DT_CALCRECT);
-            rcTarget.top -= 10; rcTarget.right +=10; rcTarget.left -= 10;
-            rcTarget.bottom = rcTarget.bottom + heightOfWords/2;
+            heightOfWords = DrawText(hdcWindow, text, -1,&rcTarget, DT_LEFT | DT_WORDBREAK | DT_CALCRECT | DT_EDITCONTROL);
+            int padding = 10;
+            rcTarget.top -= padding; rcTarget.right += padding; rcTarget.left -= padding; rcTarget.bottom = rcTarget.bottom + padding;
+            
             
             Rectangle(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
             DrawText(hdcWindow, text, -1,&rcText, DT_LEFT | DT_NOCLIP | DT_WORDBREAK | DT_EDITCONTROL);
           }
           
           ReleaseDC(hwnd, hdcWindow);
-        
+          bWriting = FALSE;
         }
-      
-      pt.x = (LONG) LOWORD(lparam); 
-      pt.y = (LONG) HIWORD(lparam);
-      bWriting = FALSE;
-      bDrawing = TRUE;
-      return 0;
-      
+        
+        bDrawing = TRUE;
+              
+        return 0;
+    }
     case WM_MOUSEMOVE://you want the newest movement shown and the previous disappear.
       if((bDrawing==TRUE) && (param&MK_LBUTTON)){  
         hdcWindow = GetDC(hwnd);
@@ -357,8 +364,6 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
                 SelectObject(hdcWindow, hPenDefault);
                 SelectObject(hdcWindow, GetStockObject(NULL_BRUSH));
                 Rectangle(hdcWindow, rcTarget.left, rcTarget.top, rcTarget.right, rcTarget.bottom);
-                bWriting = TRUE;
-                
         }
                 
         rcPrevious = rcTarget;
@@ -371,65 +376,63 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
         DeleteObject(hBrushDefault);
       }
       return 0;
+      
     case WM_LBUTTONUP:
-        if(bDrawing==TRUE){
-          // Shape* p  = new Shape();
-          // shapes.push_front(p);
-          // p->rect = rcTarget;
-          // p->shapeID = 2;
-        }
-        
-        //create edit control if the rectangle drawn is sizeable.
-        if( (shapeMode==IDM_MODE_TEXT)&&        //mode is for text shape
-            bWriting&&                        //user is able to enter text right now
-            (pt.x != (LONG)LOWORD(lparam))&&  //current point up isn't the original point
-            (pt.y != (LONG) HIWORD(lparam))
-            ){
-          
-          // if(hwndEdit){
-              // DestroyWindow(hwndEdit);
-          // }
-          
-          //clear the guide rectangle from screen.
-          
-          hwndEdit = CreateWindowEx(
-                            0, "EDIT",   // predefined class 
-                            "INNER CHILD",         // no window title 
-                            WS_CHILD | WS_VISIBLE | WS_BORDER|
-                            ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL |ES_NOHIDESEL , 
-                            rcTarget.left, rcTarget.top, rcTarget.right - rcTarget.left, rcTarget.bottom - rcTarget.top,   // set size in WM_SIZE message 
-                            hwnd,         // parent window 
-                            (HMENU) ID_EDITCHILD,   // edit control ID 
-                            (HINSTANCE) GetWindowLongPtr(hwnd, GWLP_HINSTANCE), 
-                            NULL);        // pointer not needed  
-                                    
-          hTextFont = CreateFontA(       20,                        //int   cHeight
-                                         0,                         //int   cWidth
-                                         0,                         //int   cEscapement,
-                                         0,                         //int   cOrientation, 
-                                         400,                       //int   cWeight,
-                                         TRUE,                      //DWORD bItalic,
-                                         FALSE,                     //DWORD bUnderline,
-                                         FALSE,                     //DWORD bStrikeOut,
-                                         ANSI_CHARSET,              //DWORD iCharSet,
-                                         OUT_DEFAULT_PRECIS,        //DWORD iOutPrecision,
-                                         CLIP_DEFAULT_PRECIS,       //DWORD iClipPrecision,
-                                         PROOF_QUALITY,             //DWORD iQuality,
-                                         VARIABLE_PITCH|FF_DECORATIVE,             //DWORD iPitchAndFamily,               
-                                         "Comic Sans MS"                  //LPCSTR pszFaceName
-                                        );
+          {
+        //if button up occurs at he same point as the button down, do nothing.
+        if( (shapeMode==IDM_MODE_TEXT)&&
+            (pt.x != (LONG)LOWORD(lparam))&&
+            (pt.y != (LONG) HIWORD(lparam))){
+              
+              if(hwndEdit){
+                  DestroyWindow(hwndEdit);
+              }
+              
+              hwndEdit = CreateWindowEx(
+                                0, "EDIT",   // predefined class 
+                                "INNER CHILD",         // no window title 
+                                WS_CHILD | WS_VISIBLE | WS_BORDER|
+                                ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL |ES_NOHIDESEL , 
+                                rcTarget.left, rcTarget.top, rcTarget.right - rcTarget.left, rcTarget.bottom - rcTarget.top,   // set size in WM_SIZE message 
+                                hwnd,         // parent window 
+                                (HMENU) ID_EDITCHILD,   // edit control ID 
+                                (HINSTANCE) GetWindowLongPtr(hwnd, GWLP_HINSTANCE), 
+                                NULL);        // pointer not needed  
+              
                                         
-          // set font, add text, set focus and select text
-          //SendMessage(hwndEdit, WM_SETFONT, WPARAM(hTextFont), TRUE);
-          SendMessage(hwndEdit, WM_SETTEXT, 0, (LPARAM) lpszSample); 
-          SetFocus(hwndEdit);
-          SendMessage(hwndEdit, EM_SETSEL , (WPARAM)(0), (LPARAM)(-1)); 
+              hTextFont = CreateFontA(       20,                        //int   cHeight
+                                             0,                         //int   cWidth
+                                             0,                         //int   cEscapement,
+                                             0,                         //int   cOrientation, 
+                                             400,                       //int   cWeight,
+                                             TRUE,                      //DWORD bItalic,
+                                             FALSE,                     //DWORD bUnderline,
+                                             FALSE,                     //DWORD bStrikeOut,
+                                             ANSI_CHARSET,              //DWORD iCharSet,
+                                             OUT_DEFAULT_PRECIS,        //DWORD iOutPrecision,
+                                             CLIP_DEFAULT_PRECIS,       //DWORD iClipPrecision,
+                                             PROOF_QUALITY,             //DWORD iQuality,
+                                             VARIABLE_PITCH|FF_DECORATIVE,             //DWORD iPitchAndFamily,               
+                                             "Comic Sans MS"                  //LPCSTR pszFaceName
+                                            );
+                                            
+              // set font, add text, set focus and select text
+              //SendMessage(hwndEdit, WM_SETFONT, WPARAM(hTextFont), TRUE);
+              SendMessage(hwndEdit, WM_SETTEXT, 0, (LPARAM) lpszSample); 
+              SetFocus(hwndEdit);
+              SendMessage(hwndEdit, EM_SETSEL , (WPARAM)(0), (LPARAM)(-1)); 
+            
+            bWriting = TRUE;
+            bDrawing = FALSE;
+            bGaugingSize = FALSE;
+            GlobalFree((HGLOBAL)lpbitmap);
+        }else{
+          bGaugingSize = FALSE;
+          bDrawing = FALSE;
+          GlobalFree((HGLOBAL)lpbitmap);
         }
-        
-        bDrawing = FALSE;
-        bGaugingSize = FALSE;
-        GlobalFree((HGLOBAL)lpbitmap);
         return 0;
+    }
     default:
       return DefWindowProc(hwnd, msg, param, lparam);
 	}
@@ -642,7 +645,7 @@ void AddMenus(HWND hwnd) {
     AppendMenuW(hMenu, MF_STRING, IDM_MODE_ROUNDED, L"&Rounded Rectangle");
     AppendMenuW(hMenu, MF_STRING, IDM_MODE_TEXT, L"&Text");
     CheckMenuRadioItem(hMenu, IDM_MODE_ELLIPSE, IDM_MODE_TEXT, IDM_MODE_TEXT, MF_BYCOMMAND);
-    AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR) hMenu, L"&Shapes");
+    AppendMenuW(hMenubar, MF_POPUP, (UINT_PTR) hMenu, L"&Draw");
     
     hFillMenu= CreateMenu();
     AppendMenuW(hFillMenu, MF_STRING, IDM_FILL_NONE, L"&None");
