@@ -108,6 +108,7 @@ mouse up
     if mode is drawing text
       draw a text edit window.
       set writing active
+    if mode isn't drawing text...
     close the text box and draw the text to the canvas.
     set writing inactive
     
@@ -115,6 +116,8 @@ mouse move
     if drawing is active
     draw the rectangle for the text edits window.
 
+drawing is when there is a movement on the screen that will be display a rectangle to the point where the mouse is when the leftbutton is down.
+writing is when there is focus on the edit for text to be entered. it is true when drawing stops upto the point where a signal for an end to writing stops.
 RIGHT NOW I THNK THE SEQUENCE OF ACTIONS FOR DRAWING IS AS FOLLOWS
 mouse down
     set first point
