@@ -1,4 +1,0 @@
-Stuff I'm finding out about the graphics headers in mingw
-  including gdiplus includes all the header files, that is all the wdi classes mentioned in https://docs.microsoft.com/en-us/windows/win32/api/_gdiplus/
-  those are the classes defining the interaction between the program and the grahics devices.
-To store an image temporarily, your application must call CreateCompatibleDC to create a DC that is compatible with the current window DC.

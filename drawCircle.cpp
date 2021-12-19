@@ -214,7 +214,7 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
           //draw on window
           hdcWindow = GetDC(hwnd);
           DestroyWindow(hwndEdit);
-          //SelectObject(hdcWindow, hTextFont);
+          SelectObject(hdcWindow, hTextFont);
           SetBkColor(hdcWindow, dColor);
           
           
@@ -417,7 +417,7 @@ LRESULT CALLBACK WindowProcessMessages(HWND hwnd, UINT msg, WPARAM param, LPARAM
                                             );
                                             
               // set font, add text, set focus and select text
-              //SendMessage(hwndEdit, WM_SETFONT, WPARAM(hTextFont), TRUE);
+              SendMessage(hwndEdit, WM_SETFONT, WPARAM(hTextFont), TRUE);
               SendMessage(hwndEdit, WM_SETTEXT, 0, (LPARAM) lpszSample); 
               SetFocus(hwndEdit);
               SendMessage(hwndEdit, EM_SETSEL , (WPARAM)(0), (LPARAM)(-1)); 
